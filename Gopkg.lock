@@ -129,8 +129,8 @@
 [[projects]]
   name = "github.com/exoscale/egoscale"
   packages = ["."]
-  revision = "432a702ab7d709538572f9a2a42eaf0ca0691698"
-  version = "v0.9.23"
+  revision = "0ea1c1380d6fce029198dfaf3d656b63802e1e02"
+  version = "v0.12.3"
 
 [[projects]]
   name = "github.com/go-ini/ini"
@@ -146,12 +146,6 @@
   name = "github.com/google/go-querystring"
   packages = ["query"]
   revision = "30f7a39f4a218feb5325f3aebc60c32a572a8274"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/jinzhu/copier"
-  packages = ["."]
-  revision = "7e38e58719c33e0d44d585c4ab477a30f8cb82dd"
 
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
@@ -200,6 +194,12 @@
   name = "github.com/samalba/dockerclient"
   packages = ["."]
   revision = "f661dd4754aa5c52da85d04b5871ee0e11f4b59c"
+
+[[projects]]
+  name = "github.com/satori/go.uuid"
+  packages = ["."]
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -342,6 +342,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "719314934f3d0bb8163ba9d459ebb4135c14e92b1750c74a37ffa668102dc81c"
+  inputs-digest = "57175883e7df0bc6c1c4d212e7d87ddd0b2d3ff217dd08f75fe017947fa0b63a"
   solver-name = "gps-cdcl"
   solver-version = 1
