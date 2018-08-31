@@ -1,6 +1,17 @@
 Changelog
 =========
 
+0.11.2
+------
+
+- fix: empty list responses
+
+0.11.1
+------
+
+- fix: `client.Sign` handles correctly the brackets (kudos to @stffabi)
+- change: `client.Payload` returns a `url.Values`
+
 0.11.0
 ------
 
