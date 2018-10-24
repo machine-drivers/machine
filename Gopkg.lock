@@ -155,12 +155,12 @@
   revision = "0bbddae09c5a5419a8c6dcdd7ff90da3d450393b"
 
 [[projects]]
-  digest = "1:ab453f9b41da73524af62eeb3c33cd1ea6860be46610b3e1e80d7aa607a6ff59"
+  digest = "1:20c374bdafa1db787ece8d3e55ba8dede0014e41892a0901ae8a52cfa1bff154"
   name = "github.com/exoscale/egoscale"
   packages = ["."]
   pruneopts = "UT"
-  revision = "98ba17167c8a64dafbd32b3cf13428d30ca1db58"
-  version = "v0.11.2"
+  revision = "f4c53157accc5e784e5998da089ee2a8c4911d52"
+  version = "v0.12.2"
 
 [[projects]]
   digest = "1:ad48c8fd2fb8c747d8798f19890f70b18091196274a773550a9e5dffa9e165d1"
