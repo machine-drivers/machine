@@ -47,7 +47,7 @@ the directory that contains your `src` directory, e.g.:
     $ export GOPATH=/home/yourname/work
     $ mkdir -p $GOPATH/src/github.com/docker
     $ cd $GOPATH/src/github.com/docker && git clone git@github.com:docker/machine.git
-    $ cd machine        
+    $ cd machine
 
 At this point, simply run:
 
@@ -66,7 +66,7 @@ to clean-up build results.
 ## Tests and validation
 
 We use the usual `go` tools for this, to run those commands you need at least the linter which you can
-install with `go get -u github.com/golang/lint/golint`
+install with `go get -u golang.org/x/lint/golint`
 
 To run basic validation (dco, fmt), and the project unit tests, call:
 
@@ -223,7 +223,7 @@ in order to run the core tests on Red Hat Enterprise Linux on Amazon.
 
 ### Layout
 
-The `test/integration` directory is layed out to divide up tests based on the
+The `test/integration` directory is laid out to divide up tests based on the
 areas which the test.  If you are uncertain where to put yours, we are happy to
 guide you.
 
