@@ -505,3 +505,27 @@ func (d *Driver) generateDiskImage() (string, error) {
 
 	return diskImage, nil
 }
+
+func (path string) EnableCifsShare() (bool, error) {
+	// Ensure that the current user is administrator because creating a SMB Share requires Administrator privileges.
+	_ , err := isWindowsAdministrator()
+	if err != nil {
+		return false, err
+	}
+
+	// Get the current user so that we can assign full access permissions to only that user.
+	// TODO - Check if we can use another user.
+	user, err := getCurrentWindowsUser()
+	if err != nil {
+		return false, err
+	}
+
+	log.Info("Trying to enable share for CIFS Mounting.")
+
+	var shareName = "minikube"
+	if err := cmd("SmbShare\\New-SmbShare", "-Name", shareName, "-Path", path , "-FullAccess", user, "-Temporary", ); err != nil {
+		return false, err
+	}
+
+	return true,nil
+}

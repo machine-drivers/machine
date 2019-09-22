@@ -105,6 +105,17 @@ func isWindowsAdministrator() (bool, error) {
 	return resp[0] == "True", nil
 }
 
+// This function is used to get the full name of the current user trying to run. It will be DOMAIN\Username or MACHINE_NAME\Username
+// TODO - Check if CIFS shares can be used by people who have domain accounts and are local admins on their machines.
+func getCurrentWindowsUser() (string, error) {
+	stdout, err := cmdOut(`@([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).Identities.Name`)
+	if err != nil {
+		return "", err
+	}
+	response := parseLines(stdout)
+	return response[0], nil
+}
+
 func quote(text string) string {
 	return fmt.Sprintf("'%s'", text)
 }
