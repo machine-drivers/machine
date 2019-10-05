@@ -145,7 +145,7 @@ func (d *Driver) GetState() (state.State, error) {
 		return state.None, fmt.Errorf("Failed to find the VM status")
 	}
 
-	resp := parseLines(stdout)
+	resp := ParseLines(stdout)
 	if len(resp) < 1 {
 		return state.None, nil
 	}
@@ -217,7 +217,7 @@ func (d *Driver) Create() error {
 		return err
 	}
 
-	if err := cmd("Hyper-V\\New-VM",
+	if err := Cmd("Hyper-V\\New-VM",
 		d.MachineName,
 		"-Path", fmt.Sprintf("'%s'", d.ResolveStorePath(".")),
 		"-SwitchName", quote(virtualSwitch),
@@ -225,7 +225,7 @@ func (d *Driver) Create() error {
 		return err
 	}
 	if d.DisableDynamicMemory {
-		if err := cmd("Hyper-V\\Set-VMMemory",
+		if err := Cmd("Hyper-V\\Set-VMMemory",
 			"-VMName", d.MachineName,
 			"-DynamicMemoryEnabled", "$false"); err != nil {
 			return err
@@ -233,7 +233,7 @@ func (d *Driver) Create() error {
 	}
 
 	if d.CPU > 1 {
-		if err := cmd("Hyper-V\\Set-VMProcessor",
+		if err := Cmd("Hyper-V\\Set-VMProcessor",
 			d.MachineName,
 			"-Count", fmt.Sprintf("%d", d.CPU)); err != nil {
 			return err
@@ -241,7 +241,7 @@ func (d *Driver) Create() error {
 	}
 
 	if d.MacAddr != "" {
-		if err := cmd("Hyper-V\\Set-VMNetworkAdapter",
+		if err := Cmd("Hyper-V\\Set-VMNetworkAdapter",
 			"-VMName", d.MachineName,
 			"-StaticMacAddress", fmt.Sprintf("\"%s\"", d.MacAddr)); err != nil {
 			return err
@@ -249,7 +249,7 @@ func (d *Driver) Create() error {
 	}
 
 	if d.VLanID > 0 {
-		if err := cmd("Hyper-V\\Set-VMNetworkAdapterVlan",
+		if err := Cmd("Hyper-V\\Set-VMNetworkAdapterVlan",
 			"-VMName", d.MachineName,
 			"-Access",
 			"-VlanId", fmt.Sprintf("%d", d.VLanID)); err != nil {
@@ -257,13 +257,13 @@ func (d *Driver) Create() error {
 		}
 	}
 
-	if err := cmd("Hyper-V\\Set-VMDvdDrive",
+	if err := Cmd("Hyper-V\\Set-VMDvdDrive",
 		"-VMName", d.MachineName,
 		"-Path", quote(d.ResolveStorePath("boot2docker.iso"))); err != nil {
 		return err
 	}
 
-	if err := cmd("Hyper-V\\Add-VMHardDiskDrive",
+	if err := Cmd("Hyper-V\\Add-VMHardDiskDrive",
 		"-VMName", d.MachineName,
 		"-Path", quote(diskImage)); err != nil {
 		return err
@@ -358,7 +358,7 @@ func (d *Driver) waitStopped() error {
 
 // Start starts an host
 func (d *Driver) Start() error {
-	if err := cmd("Hyper-V\\Start-VM", d.MachineName); err != nil {
+	if err := Cmd("Hyper-V\\Start-VM", d.MachineName); err != nil {
 		return err
 	}
 
@@ -374,7 +374,7 @@ func (d *Driver) Start() error {
 
 // Stop stops an host
 func (d *Driver) Stop() error {
-	if err := cmd("Hyper-V\\Stop-VM", d.MachineName); err != nil {
+	if err := Cmd("Hyper-V\\Stop-VM", d.MachineName); err != nil {
 		return err
 	}
 
@@ -400,7 +400,7 @@ func (d *Driver) Remove() error {
 		}
 	}
 
-	return cmd("Hyper-V\\Remove-VM", d.MachineName, "-Force")
+	return Cmd("Hyper-V\\Remove-VM", d.MachineName, "-Force")
 }
 
 // Restart stops and starts an host
@@ -415,7 +415,7 @@ func (d *Driver) Restart() error {
 
 // Kill force stops an host
 func (d *Driver) Kill() error {
-	if err := cmd("Hyper-V\\Stop-VM", d.MachineName, "-TurnOff"); err != nil {
+	if err := Cmd("Hyper-V\\Stop-VM", d.MachineName, "-TurnOff"); err != nil {
 		return err
 	}
 
@@ -442,7 +442,7 @@ func (d *Driver) GetIP() (string, error) {
 		return "", err
 	}
 
-	resp := parseLines(stdout)
+	resp := ParseLines(stdout)
 	if len(resp) < 1 {
 		return "", fmt.Errorf("IP not found")
 	}
@@ -461,7 +461,7 @@ func (d *Driver) generateDiskImage() (string, error) {
 
 	// Resizing vhds requires administrator privileges
 	// incase the user is only a hyper-v admin then create the disk at the target size to avoid resizing.
-	isWindowsAdmin, err := isWindowsAdministrator()
+	isWindowsAdmin, err := IsWindowsAdministrator()
 	if err != nil {
 		return "", err
 	}
@@ -471,7 +471,7 @@ func (d *Driver) generateDiskImage() (string, error) {
 	}
 
 	log.Infof("Creating VHD")
-	if err := cmd("Hyper-V\\New-VHD", "-Path", quote(fixed), "-SizeBytes", fixedDiskSize, "-Fixed"); err != nil {
+	if err := Cmd("Hyper-V\\New-VHD", "-Path", quote(fixed), "-SizeBytes", fixedDiskSize, "-Fixed"); err != nil {
 		return "", err
 	}
 
@@ -493,39 +493,15 @@ func (d *Driver) generateDiskImage() (string, error) {
 	}
 	file.Close()
 
-	if err := cmd("Hyper-V\\Convert-VHD", "-Path", quote(fixed), "-DestinationPath", quote(diskImage), "-VHDType", "Dynamic", "-DeleteSource"); err != nil {
+	if err := Cmd("Hyper-V\\Convert-VHD", "-Path", quote(fixed), "-DestinationPath", quote(diskImage), "-VHDType", "Dynamic", "-DeleteSource"); err != nil {
 		return "", err
 	}
 
 	if isWindowsAdmin {
-		if err := cmd("Hyper-V\\Resize-VHD", "-Path", quote(diskImage), "-SizeBytes", toMb(d.DiskSize)); err != nil {
+		if err := Cmd("Hyper-V\\Resize-VHD", "-Path", quote(diskImage), "-SizeBytes", toMb(d.DiskSize)); err != nil {
 			return "", err
 		}
 	}
 
 	return diskImage, nil
-}
-
-func (path string) EnableCifsShare() (bool, error) {
-	// Ensure that the current user is administrator because creating a SMB Share requires Administrator privileges.
-	_ , err := isWindowsAdministrator()
-	if err != nil {
-		return false, err
-	}
-
-	// Get the current user so that we can assign full access permissions to only that user.
-	// TODO - Check if we can use another user.
-	user, err := getCurrentWindowsUser()
-	if err != nil {
-		return false, err
-	}
-
-	log.Info("Trying to enable share for CIFS Mounting.")
-
-	var shareName = "minikube"
-	if err := cmd("SmbShare\\New-SmbShare", "-Name", shareName, "-Path", path , "-FullAccess", user, "-Temporary", ); err != nil {
-		return false, err
-	}
-
-	return true,nil
 }

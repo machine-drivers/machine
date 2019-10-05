@@ -38,12 +38,12 @@ func cmdOut(args ...string) (string, error) {
 	return stdout.String(), err
 }
 
-func cmd(args ...string) error {
+func Cmd(args ...string) error {
 	_, err := cmdOut(args...)
 	return err
 }
 
-func parseLines(stdout string) []string {
+func ParseLines(stdout string) []string {
 	resp := []string{}
 
 	s := bufio.NewScanner(strings.NewReader(stdout))
@@ -60,7 +60,7 @@ func hypervAvailable() error {
 		return err
 	}
 
-	resp := parseLines(stdout)
+	resp := ParseLines(stdout)
 	if resp[0] != "Hyper-V" {
 		return ErrNotInstalled
 	}
@@ -75,7 +75,7 @@ func isAdministrator() (bool, error) {
 		return true, nil
 	}
 
-	windowsAdmin, err := isWindowsAdministrator()
+	windowsAdmin, err := IsWindowsAdministrator()
 
 	if err != nil {
 		return false, err
@@ -91,28 +91,28 @@ func isHypervAdministrator() bool {
 		return false
 	}
 
-	resp := parseLines(stdout)
+	resp := ParseLines(stdout)
 	return resp[0] == "True"
 }
 
-func isWindowsAdministrator() (bool, error) {
+func IsWindowsAdministrator() (bool, error) {
 	stdout, err := cmdOut(`@([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")`)
 	if err != nil {
 		return false, err
 	}
 
-	resp := parseLines(stdout)
+	resp := ParseLines(stdout)
 	return resp[0] == "True", nil
 }
 
 // This function is used to get the full name of the current user trying to run. It will be DOMAIN\Username or MACHINE_NAME\Username
 // TODO - Check if CIFS shares can be used by people who have domain accounts and are local admins on their machines.
-func getCurrentWindowsUser() (string, error) {
+func GetCurrentWindowsUser() (string, error) {
 	stdout, err := cmdOut(`@([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).Identities.Name`)
 	if err != nil {
 		return "", err
 	}
-	response := parseLines(stdout)
+	response := ParseLines(stdout)
 	return response[0], nil
 }
 
