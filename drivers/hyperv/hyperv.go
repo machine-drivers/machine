@@ -16,16 +16,23 @@ import (
 	"github.com/docker/machine/libmachine/state"
 )
 
+const (
+	DefaultProtocol = iota
+	PreferIPv4
+	PreferIPv6
+)
+
 type Driver struct {
 	*drivers.BaseDriver
-	Boot2DockerURL       string
-	VSwitch              string
-	DiskSize             int
-	MemSize              int
-	CPU                  int
-	MacAddr              string
-	VLanID               int
-	DisableDynamicMemory bool
+	Boot2DockerURL           string
+	VSwitch                  string
+	DiskSize                 int
+	MemSize                  int
+	CPU                      int
+	MacAddr                  string
+	VLanID                   int
+	DisableDynamicMemory     bool
+	PreferredNetworkProtocol int
 }
 
 const (
@@ -98,6 +105,11 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Name:   "hyperv-disable-dynamic-memory",
 			Usage:  "Disable dynamic memory management setting",
 			EnvVar: "HYPERV_DISABLE_DYNAMIC_MEMORY",
+		},
+		mcnflag.IntFlag{
+			Name:   "hyperv-preferred-network-protocol",
+			Usage:  "Preferred network protocol (IPv4/v6)",
+			EnvVar: "HYPERV_PREFERRED_NETWORK_PROTOCOL",
 		},
 	}
 }
@@ -428,6 +440,10 @@ func (d *Driver) Kill() error {
 	return nil
 }
 
+func isIPv4(address string) bool {
+	return strings.Count(address, ":") < 2
+}
+
 func (d *Driver) GetIP() (string, error) {
 	s, err := d.GetState()
 	if err != nil {
@@ -437,7 +453,7 @@ func (d *Driver) GetIP() (string, error) {
 		return "", drivers.ErrHostIsNotRunning
 	}
 
-	stdout, err := cmdOut("((", "Hyper-V\\Get-VM", d.MachineName, ").networkadapters[0]).ipaddresses[0]")
+	stdout, err := cmdOut("((", "Hyper-V\\Get-VM", d.MachineName, ").networkadapters[0]).ipaddresses")
 	if err != nil {
 		return "", err
 	}
@@ -447,7 +463,33 @@ func (d *Driver) GetIP() (string, error) {
 		return "", fmt.Errorf("IP not found")
 	}
 
-	return resp[0], nil
+	switch d.PreferredNetworkProtocol {
+	case PreferIPv4:
+		for _, ipStr := range resp {
+			ip := net.ParseIP(ipStr)
+			if isIPv4(ipStr) && ip.To4() != nil && ip.IsGlobalUnicast() {
+				return ipStr, nil
+			}
+		}
+
+	case PreferIPv6:
+		for _, ipStr := range resp {
+			ip := net.ParseIP(ipStr)
+			if !isIPv4(ipStr) && ip.IsGlobalUnicast() {
+				return ipStr, nil
+			}
+		}
+
+	default:
+		for _, ipStr := range resp {
+			ip := net.ParseIP(ipStr)
+			if ip.IsGlobalUnicast() {
+				return ipStr, nil
+			}
+		}
+	}
+
+	return "", nil
 }
 
 func (d *Driver) publicSSHKeyPath() string {
