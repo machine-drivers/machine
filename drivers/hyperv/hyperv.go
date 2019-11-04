@@ -2,6 +2,7 @@ package hyperv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -42,6 +43,7 @@ const (
 	defaultVLanID               = 0
 	defaultDisableDynamicMemory = false
 	defaultSwitchID             = "c08cb7b8-9b3c-408e-8e30-5e16a3aeb444"
+	defaultTimeout              = time.Minute * 10
 )
 
 // NewDriver creates a new Hyper-v driver with default settings.
@@ -340,10 +342,15 @@ func (d *Driver) chooseVirtualSwitch() (string, error) {
 func (d *Driver) waitForIP() (string, error) {
 	log.Infof("Waiting for host to start...")
 
+	start := time.Now()
 	for {
 		ip, _ := d.GetIP()
 		if ip != "" {
 			return ip, nil
+		}
+
+		if time.Since(start) >= defaultTimeout {
+			return "", errors.New("timeout waiting for IP")
 		}
 
 		time.Sleep(1 * time.Second)
@@ -354,6 +361,7 @@ func (d *Driver) waitForIP() (string, error) {
 func (d *Driver) waitStopped() error {
 	log.Infof("Waiting for host to stop...")
 
+	start := time.Now()
 	for {
 		s, err := d.GetState()
 		if err != nil {
@@ -362,6 +370,10 @@ func (d *Driver) waitStopped() error {
 
 		if s != state.Running {
 			return nil
+		}
+
+		if time.Since(start) >= defaultTimeout {
+			return errors.New("timeout waiting for stopped")
 		}
 
 		time.Sleep(1 * time.Second)
