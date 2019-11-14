@@ -34,6 +34,7 @@ type Driver struct {
 	VLanID                   int
 	DisableDynamicMemory     bool
 	PreferredNetworkProtocol int
+	WaitTimeoutInSeconds     time.Duration
 }
 
 const (
@@ -43,20 +44,22 @@ const (
 	defaultVLanID               = 0
 	defaultDisableDynamicMemory = false
 	defaultSwitchID             = "c08cb7b8-9b3c-408e-8e30-5e16a3aeb444"
-	defaultTimeout              = time.Minute * 10
+	defaultWaitTimeoutInSeconds = 3 * 60
 )
 
 // NewDriver creates a new Hyper-v driver with default settings.
 func NewDriver(hostName, storePath string) *Driver {
 	return &Driver{
-		DiskSize:             defaultDiskSize,
-		MemSize:              defaultMemory,
-		CPU:                  defaultCPU,
-		DisableDynamicMemory: defaultDisableDynamicMemory,
 		BaseDriver: &drivers.BaseDriver{
 			MachineName: hostName,
 			StorePath:   storePath,
 		},
+		DiskSize:                 defaultDiskSize,
+		MemSize:                  defaultMemory,
+		CPU:                      defaultCPU,
+		DisableDynamicMemory:     defaultDisableDynamicMemory,
+		PreferredNetworkProtocol: DefaultProtocol,
+		WaitTimeoutInSeconds:     defaultWaitTimeoutInSeconds,
 	}
 }
 
@@ -113,6 +116,12 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage:  "Preferred network protocol (IPv4/v6)",
 			EnvVar: "HYPERV_PREFERRED_NETWORK_PROTOCOL",
 		},
+		mcnflag.IntFlag{
+			Name:   "hyperv-wait-timeout",
+			Usage:  "Wait timeout (in seconds)",
+			Value:  defaultWaitTimeoutInSeconds,
+			EnvVar: "HYPERV_WAIT_TIMEOUT",
+		},
 	}
 }
 
@@ -126,6 +135,8 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.VLanID = flags.Int("hyperv-vlan-id")
 	d.SSHUser = "docker"
 	d.DisableDynamicMemory = flags.Bool("hyperv-disable-dynamic-memory")
+	d.PreferredNetworkProtocol = flags.Int("hyperv-preferred-network-protocol")
+	d.WaitTimeoutInSeconds = time.Duration(flags.Int("hyperv-wait-timeout"))
 	d.SetSwarmConfigFromFlags(flags)
 
 	return nil
@@ -349,7 +360,7 @@ func (d *Driver) waitForIP() (string, error) {
 			return ip, nil
 		}
 
-		if time.Since(start) >= defaultTimeout {
+		if time.Since(start) >= d.WaitTimeoutInSeconds*time.Second {
 			return "", errors.New("timeout waiting for IP")
 		}
 
@@ -372,7 +383,7 @@ func (d *Driver) waitStopped() error {
 			return nil
 		}
 
-		if time.Since(start) >= defaultTimeout {
+		if time.Since(start) >= d.WaitTimeoutInSeconds*time.Second {
 			return errors.New("timeout waiting for stopped")
 		}
 
