@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	DefaultProtocol = iota
+	Default = iota
 	PreferIPv4
 	PreferIPv6
 )
@@ -58,7 +58,7 @@ func NewDriver(hostName, storePath string) *Driver {
 		MemSize:                  defaultMemory,
 		CPU:                      defaultCPU,
 		DisableDynamicMemory:     defaultDisableDynamicMemory,
-		PreferredNetworkProtocol: DefaultProtocol,
+		PreferredNetworkProtocol: Default,
 		WaitTimeoutInSeconds:     defaultWaitTimeoutInSeconds,
 	}
 }
@@ -464,7 +464,7 @@ func (d *Driver) Kill() error {
 }
 
 func isIPv4(address string) bool {
-	return strings.Count(address, ":") < 2
+	return strings.Count(address, ":") < 1
 }
 
 func (d *Driver) GetIP() (string, error) {
@@ -504,11 +504,22 @@ func (d *Driver) GetIP() (string, error) {
 		}
 
 	default:
+		var preferredIP string
 		for _, ipStr := range resp {
 			ip := net.ParseIP(ipStr)
 			if ip.IsGlobalUnicast() {
-				return ipStr, nil
+				if preferredIP == "" {
+					preferredIP = ipStr
+				}
+				if isIPv4(ipStr) && ip.To4() != nil {
+					preferredIP = ipStr
+					break
+				}
 			}
+		}
+
+		if preferredIP != "" {
+			return preferredIP, nil
 		}
 	}
 
