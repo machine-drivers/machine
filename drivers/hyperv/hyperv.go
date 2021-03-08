@@ -2,6 +2,7 @@ package hyperv
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -16,16 +17,24 @@ import (
 	"github.com/docker/machine/libmachine/state"
 )
 
+const (
+	Default = iota
+	PreferIPv4
+	PreferIPv6
+)
+
 type Driver struct {
 	*drivers.BaseDriver
-	Boot2DockerURL       string
-	VSwitch              string
-	DiskSize             int
-	MemSize              int
-	CPU                  int
-	MacAddr              string
-	VLanID               int
-	DisableDynamicMemory bool
+	Boot2DockerURL           string
+	VSwitch                  string
+	DiskSize                 int
+	MemSize                  int
+	CPU                      int
+	MacAddr                  string
+	VLanID                   int
+	DisableDynamicMemory     bool
+	PreferredNetworkProtocol int
+	WaitTimeoutInSeconds     time.Duration
 }
 
 const (
@@ -35,19 +44,22 @@ const (
 	defaultVLanID               = 0
 	defaultDisableDynamicMemory = false
 	defaultSwitchID             = "c08cb7b8-9b3c-408e-8e30-5e16a3aeb444"
+	defaultWaitTimeoutInSeconds = 3 * 60
 )
 
 // NewDriver creates a new Hyper-v driver with default settings.
 func NewDriver(hostName, storePath string) *Driver {
 	return &Driver{
-		DiskSize:             defaultDiskSize,
-		MemSize:              defaultMemory,
-		CPU:                  defaultCPU,
-		DisableDynamicMemory: defaultDisableDynamicMemory,
 		BaseDriver: &drivers.BaseDriver{
 			MachineName: hostName,
 			StorePath:   storePath,
 		},
+		DiskSize:                 defaultDiskSize,
+		MemSize:                  defaultMemory,
+		CPU:                      defaultCPU,
+		DisableDynamicMemory:     defaultDisableDynamicMemory,
+		PreferredNetworkProtocol: Default,
+		WaitTimeoutInSeconds:     defaultWaitTimeoutInSeconds,
 	}
 }
 
@@ -99,6 +111,17 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage:  "Disable dynamic memory management setting",
 			EnvVar: "HYPERV_DISABLE_DYNAMIC_MEMORY",
 		},
+		mcnflag.IntFlag{
+			Name:   "hyperv-preferred-network-protocol",
+			Usage:  "Preferred network protocol (IPv4/v6)",
+			EnvVar: "HYPERV_PREFERRED_NETWORK_PROTOCOL",
+		},
+		mcnflag.IntFlag{
+			Name:   "hyperv-wait-timeout",
+			Usage:  "Wait timeout (in seconds)",
+			Value:  defaultWaitTimeoutInSeconds,
+			EnvVar: "HYPERV_WAIT_TIMEOUT",
+		},
 	}
 }
 
@@ -112,6 +135,8 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.VLanID = flags.Int("hyperv-vlan-id")
 	d.SSHUser = "docker"
 	d.DisableDynamicMemory = flags.Bool("hyperv-disable-dynamic-memory")
+	d.PreferredNetworkProtocol = flags.Int("hyperv-preferred-network-protocol")
+	d.WaitTimeoutInSeconds = time.Duration(flags.Int("hyperv-wait-timeout"))
 	d.SetSwarmConfigFromFlags(flags)
 
 	return nil
@@ -330,10 +355,15 @@ func (d *Driver) chooseVirtualSwitch() (string, error) {
 func (d *Driver) waitForIP() (string, error) {
 	log.Infof("Waiting for host to start...")
 
+	start := time.Now()
 	for {
 		ip, _ := d.GetIP()
 		if ip != "" {
 			return ip, nil
+		}
+
+		if time.Since(start) >= d.WaitTimeoutInSeconds*time.Second {
+			return "", errors.New("timeout waiting for IP")
 		}
 
 		time.Sleep(1 * time.Second)
@@ -344,6 +374,7 @@ func (d *Driver) waitForIP() (string, error) {
 func (d *Driver) waitStopped() error {
 	log.Infof("Waiting for host to stop...")
 
+	start := time.Now()
 	for {
 		s, err := d.GetState()
 		if err != nil {
@@ -352,6 +383,10 @@ func (d *Driver) waitStopped() error {
 
 		if s != state.Running {
 			return nil
+		}
+
+		if time.Since(start) >= d.WaitTimeoutInSeconds*time.Second {
+			return errors.New("timeout waiting for stopped")
 		}
 
 		time.Sleep(1 * time.Second)
@@ -430,6 +465,10 @@ func (d *Driver) Kill() error {
 	return nil
 }
 
+func isIPv4(address string) bool {
+	return strings.Count(address, ":") < 1
+}
+
 func (d *Driver) GetIP() (string, error) {
 	s, err := d.GetState()
 	if err != nil {
@@ -439,7 +478,7 @@ func (d *Driver) GetIP() (string, error) {
 		return "", drivers.ErrHostIsNotRunning
 	}
 
-	stdout, err := cmdOut("((", "Hyper-V\\Get-VM", d.MachineName, ").networkadapters[0]).ipaddresses[0]")
+	stdout, err := cmdOut("((", "Hyper-V\\Get-VM", d.MachineName, ").networkadapters[0]).ipaddresses")
 	if err != nil {
 		return "", err
 	}
@@ -449,7 +488,44 @@ func (d *Driver) GetIP() (string, error) {
 		return "", fmt.Errorf("IP not found")
 	}
 
-	return resp[0], nil
+	switch d.PreferredNetworkProtocol {
+	case PreferIPv4:
+		for _, ipStr := range resp {
+			ip := net.ParseIP(ipStr)
+			if isIPv4(ipStr) && ip.To4() != nil && ip.IsGlobalUnicast() {
+				return ipStr, nil
+			}
+		}
+
+	case PreferIPv6:
+		for _, ipStr := range resp {
+			ip := net.ParseIP(ipStr)
+			if !isIPv4(ipStr) && ip.IsGlobalUnicast() {
+				return ipStr, nil
+			}
+		}
+
+	default:
+		var preferredIP string
+		for _, ipStr := range resp {
+			ip := net.ParseIP(ipStr)
+			if ip.IsGlobalUnicast() {
+				if preferredIP == "" {
+					preferredIP = ipStr
+				}
+				if isIPv4(ipStr) && ip.To4() != nil {
+					preferredIP = ipStr
+					break
+				}
+			}
+		}
+
+		if preferredIP != "" {
+			return preferredIP, nil
+		}
+	}
+
+	return "", nil
 }
 
 func (d *Driver) publicSSHKeyPath() string {
